@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/.git
+**/*.log
+packages/server/prisma/dev.db
+packages/server/prisma/dev.db-journal
+.env
+**/.env
+**/.DS_Store

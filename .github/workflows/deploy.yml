@@ -1,0 +1,37 @@
+name: Deploy (Railway)
+
+# Деплой на Railway после успешного CI на main.
+# АЛЬТЕРНАТИВА: если подключить репозиторий через нативную GitHub-интеграцию Railway,
+# деплой пойдёт автоматически и этот workflow НЕ нужен — удали файл.
+#
+# Что нужно настроить в репозитории (Settings → Secrets and variables → Actions):
+#   secret  RAILWAY_TOKEN   — токен проекта Railway (Project Settings → Tokens)
+#   var     RAILWAY_SERVICE — имя сервиса в Railway (Variables, не Secret), напр. "sigma-zadrots"
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy-railway
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Railway up
+    runs-on: ubuntu-latest
+    # деплоим только если CI прошёл успешно
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+      - name: Deploy
+        run: railway up --service "${{ vars.RAILWAY_SERVICE }}" --ci

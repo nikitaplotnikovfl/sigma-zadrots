@@ -1,0 +1,21 @@
+# deps / build
+node_modules/
+dist/
+*.tsbuildinfo
+
+# секреты и окружение
+.env
+**/.env
+!.env.example
+
+# локальная SQLite-БД (больше не используется, но на всякий)
+packages/server/prisma/*.db
+packages/server/prisma/*.db-journal
+
+# логи / временное
+*.log
+.DS_Store
+
+# IDE
+.idea/
+.vscode/

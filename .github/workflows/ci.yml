@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Дублирующиеся прогоны на одной ветке отменяем.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Сервер — типчек и тесты
+    runs-on: ubuntu-latest
+    # Фиктивные значения: модули читают env при импорте; реальная БД для типчека/тестов не нужна
+    # (тесты покрывают чистые функции normalize/aggregate/statsQuery).
+    env:
+      FACEIT_API_KEY: ci-dummy
+      HUB_ID: ci-dummy
+      DATABASE_URL: postgresql://user:pass@localhost:5432/db?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: packages/server/package-lock.json
+      - name: Install
+        working-directory: packages/server
+        run: npm ci
+      - name: Typecheck
+        working-directory: packages/server
+        run: npx tsc --noEmit
+      - name: Tests
+        working-directory: packages/server
+        run: npm test
+
+  web:
+    name: Фронтенд — сборка
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: packages/web/package-lock.json
+      - name: Install
+        working-directory: packages/web
+        run: npm ci
+      - name: Build
+        working-directory: packages/web
+        run: npm run build

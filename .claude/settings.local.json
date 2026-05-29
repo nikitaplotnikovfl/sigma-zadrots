@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm -v)",
+      "Bash(go version *)",
+      "WebFetch(domain:docs.faceit.com)",
+      "WebSearch",
+      "Bash(corepack --version)",
+      "Bash(pnpm --version)",
+      "Bash(npx --version)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Read(//tmp/**)",
+      "Bash(pkill -f \"vite\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npx prisma *)",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "Bash(curl -s \"http://localhost:3000/api/leaderboard?pageSize=3\")",
+      "Bash(curl -s http://localhost:3000/api/sync/status)"
+    ]
+  }
+}
