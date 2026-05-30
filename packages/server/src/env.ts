@@ -19,7 +19,8 @@ export const env = {
   hubId: required('HUB_ID'),
   adminToken: process.env.ADMIN_TOKEN ?? 'changeme',
   port: Number(process.env.PORT ?? 3000),
-  syncCron: process.env.SYNC_INTERVAL_CRON ?? '*/10 * * * *',
+  syncCron: process.env.SYNC_INTERVAL_CRON ?? '0 12 * * 3', // по средам 12:00
+  syncTz: process.env.SYNC_TZ ?? 'UTC',
   pageLimit: Number(process.env.SYNC_PAGE_LIMIT ?? 100),
   minIntervalMs: Number(process.env.SYNC_MIN_INTERVAL_MS ?? 600),
   logLevel: process.env.LOG_LEVEL ?? 'info',

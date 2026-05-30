@@ -226,11 +226,20 @@ if (existsSync(staticDir)) {
 }
 
 // ---- расписание ----
-cron.schedule(env.syncCron, async () => {
-  app.log.info('cron sync start')
-  const r = await syncSource()
-  app.log.info({ r }, 'cron sync done')
-})
+if (!cron.validate(env.syncCron)) {
+  app.log.error({ cron: env.syncCron }, 'некорректное cron-выражение SYNC_INTERVAL_CRON')
+  process.exit(1)
+}
+cron.schedule(
+  env.syncCron,
+  async () => {
+    app.log.info('cron sync start')
+    const r = await syncSource()
+    app.log.info({ r }, 'cron sync done')
+  },
+  { timezone: env.syncTz },
+)
+app.log.info({ cron: env.syncCron, tz: env.syncTz }, 'sync scheduled')
 
 app
   .listen({ port: env.port, host: '0.0.0.0' })
