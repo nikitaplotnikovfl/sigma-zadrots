@@ -157,6 +157,14 @@ export function Leaderboard({ map }: { map?: string } = {}) {
         </span>
       </div>
 
+      {showDelta && (
+        <div className="flex items-center gap-2 text-xs text-text-dim">
+          <span className="text-neon-cyan">▲</span>
+          <span className="text-neon-magenta">▼</span>
+          — движение мест с прошлого турнира; <span className="text-neon-purple">new</span> — дебют
+        </div>
+      )}
+
       <NeonCard color="purple" className="overflow-hidden">
         <div className="max-h-[75vh] overflow-auto">
           <table className="w-full border-collapse text-sm">

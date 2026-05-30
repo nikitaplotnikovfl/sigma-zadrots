@@ -94,12 +94,46 @@ export async function playerMaps(playerId: string): Promise<MapBreakdown[]> {
   return out
 }
 
-// ---- Пиковый рейтинг ----
+// ---- Пиковый рейтинг = лучший рейтинг за ОТДЕЛЬНЫЙ турнир ----
+/**
+ * Накопительный (текущий) рейтинг почти не колеблется со временем, поэтому «пик» по нему
+ * всегда равен текущему и бесполезен. Вместо этого считаем рейтинг игрока ВНУТРИ каждого
+ * турнира (кластер матчей по дате) и берём максимум. fallback (текущий rating) — если
+ * у игрока нет матчей/турниров.
+ */
 export async function peakRating(playerId: string, fallback: number): Promise<number> {
-  const top = await prisma.rankSnapshot.findFirst({
-    where: { playerId },
-    orderBy: { rating: 'desc' },
-    select: { rating: true },
+  const { detectTournaments } = await import('./tournaments.js')
+  const { aggregateRows } = await import('./statsQuery.js')
+
+  const periods = await detectTournaments()
+  if (!periods.length) return fallback
+
+  const rows = await prisma.playerMatchStats.findMany({
+    where: { playerId, finishedAt: { not: null } },
+    select: {
+      playerId: true,
+      won: true,
+      kills: true,
+      deaths: true,
+      assists: true,
+      kr: true,
+      adr: true,
+      headshots: true,
+      mvps: true,
+      finishedAt: true,
+      player: { select: { nickname: true, avatar: true, country: true } },
+    },
   })
-  return top ? Math.max(top.rating, fallback) : fallback
+  if (!rows.length) return fallback
+
+  let peak = -Infinity
+  for (const period of periods) {
+    const inPeriod = rows.filter(
+      (r) => r.finishedAt! >= period.start && r.finishedAt! <= period.end,
+    )
+    if (!inPeriod.length) continue
+    const agg = aggregateRows(inPeriod)
+    if (agg[0] && agg[0].rating > peak) peak = agg[0].rating
+  }
+  return peak === -Infinity ? fallback : peak
 }

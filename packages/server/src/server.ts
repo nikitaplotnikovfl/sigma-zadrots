@@ -12,7 +12,7 @@ import { logger } from './logger.js'
 import { syncSource } from './sync.js'
 import { mapsOverview } from './maps.js'
 import { leaderboardByMap } from './statsQuery.js'
-import { getRankDeltas } from './snapshots.js'
+import { getTournamentRankDeltas } from './tournaments.js'
 import { playerForm, playerStreak, playerMaps, peakRating } from './analytics.js'
 import { headToHead, NotFoundError } from './h2h.js'
 import { searchPlayers } from './search.js'
@@ -75,7 +75,7 @@ app.get('/api/leaderboard', async (req, reply) => {
     ...(q ? { player: { nickname: { contains: q } } } : {}),
   }
 
-  const [total, rows, deltas] = await Promise.all([
+  const [total, rows, movement] = await Promise.all([
     prisma.playerAggregate.count({ where }),
     prisma.playerAggregate.findMany({
       where,
@@ -84,8 +84,9 @@ app.get('/api/leaderboard', async (req, reply) => {
       take: pageSize,
       include: { player: true },
     }),
-    getRankDeltas(),
+    getTournamentRankDeltas(),
   ])
+  const deltas = movement.deltas
 
   const items = rows.map((r, i) => ({
     rank: (page - 1) * pageSize + i + 1,
@@ -108,7 +109,15 @@ app.get('/api/leaderboard', async (req, reply) => {
     rankDelta: deltas.has(r.playerId) ? deltas.get(r.playerId)! : null,
   }))
 
-  return { total, page, pageSize, sort, order, items }
+  const rankDeltaPeriod =
+    movement.last && movement.prev
+      ? {
+          last: { start: movement.last.start, end: movement.last.end },
+          prev: { start: movement.prev.start, end: movement.prev.end },
+        }
+      : null
+
+  return { total, page, pageSize, sort, order, items, rankDeltaPeriod }
 })
 
 app.get('/api/maps', async () => ({ items: await mapsOverview() }))

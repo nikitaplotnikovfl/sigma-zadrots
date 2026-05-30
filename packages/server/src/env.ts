@@ -27,4 +27,6 @@ export const env = {
   isProd: process.env.NODE_ENV === 'production',
   // Минимум матчей (игр по картам), чтобы игрок попал в общий лидерборд.
   leaderboardMinMatches: Number(process.env.LEADERBOARD_MIN_MATCHES ?? 10),
+  // Разрыв (дней) между матчами, с которого начинается новый турнир (для движения в рейтинге).
+  tournamentGapDays: Number(process.env.TOURNAMENT_GAP_DAYS ?? 14),
 }
