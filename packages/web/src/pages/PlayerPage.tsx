@@ -604,16 +604,29 @@ function FormBlock({
   )
 }
 
+// ---- Расширенная статистика ----
+
+function ExtTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="rounded-xl border border-white/5 bg-black/30 p-4 text-center">
+      <div className="font-display text-2xl font-black text-neon-cyan neon-text-cyan">{value}</div>
+      <div className="mt-1 text-xs uppercase tracking-wide text-text-dim">{label}</div>
+      {hint && <div className="mt-0.5 text-[10px] text-text-dim/60">{hint}</div>}
+    </div>
+  )
+}
+
 // ---- Мультикиллы ----
 
 function MultiKillTiles({ mk }: { mk: MultiKills }) {
   const tiles: { label: string; value: number; color: NeonColor }[] = [
+    { label: '2K (Double)', value: num(mk.double), color: 'cyan' },
     { label: '3K (Triple)', value: num(mk.triple), color: 'cyan' },
     { label: '4K (Quadro)', value: num(mk.quadro), color: 'purple' },
     { label: '5K (Ace)', value: num(mk.penta), color: 'magenta' },
   ]
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {tiles.map((t) => (
         <NeonCard key={t.label} color={t.color} className="px-4 py-4 text-center">
           <div className="font-display text-xs uppercase tracking-[0.18em] text-text-dim">
@@ -909,6 +922,7 @@ export function PlayerPage() {
   const streak = state.data.streak ?? null
   const peakRating = state.data.peakRating
   const multiKills = state.data.multiKills
+  const extended = state.data.extended
   const maps = state.data.maps ?? []
 
   return (
@@ -964,6 +978,27 @@ export function PlayerPage() {
           </NeonCard>
         )}
       </section>
+
+      {/* Расширенная статистика */}
+      {extended && (
+        <section className="space-y-4">
+          <NeonChip color="cyan">Расширенная статистика</NeonChip>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <ExtTile label="Раундов" value={String(extended.rounds)} />
+            <ExtTile label="Килов/раунд" value={extended.kpr.toFixed(2)} />
+            <ExtTile label="Смертей/раунд" value={extended.dpr.toFixed(2)} />
+            <ExtTile label="MVP/матч" value={extended.mvpRate.toFixed(2)} />
+            <ExtTile label="Килов/матч" value={extended.perMatch.kills.toFixed(1)} />
+            <ExtTile label="Смертей/матч" value={extended.perMatch.deaths.toFixed(1)} />
+            <ExtTile label="Ассистов/матч" value={extended.perMatch.assists.toFixed(1)} />
+            <ExtTile
+              label="Стабильность"
+              value={`${extended.consistency.score}/100`}
+              hint={`σ ${extended.consistency.stdev.toFixed(2)}`}
+            />
+          </div>
+        </section>
+      )}
 
       {/* По картам */}
       <section className="space-y-4">
