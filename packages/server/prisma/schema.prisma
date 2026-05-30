@@ -67,9 +67,11 @@ model PlayerMatchStats {
   headshots    Int      @default(0)
   hsPct        Float    @default(0)
   mvps         Int      @default(0)
+  doubleKills  Int      @default(0)
   tripleKills  Int      @default(0)
   quadroKills  Int      @default(0)
   pentaKills   Int      @default(0)
+  rounds       Int      @default(0) // раундов на этой карте (сумма Final Score обеих команд)
   finishedAt   DateTime?
   match        Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
   player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
@@ -92,9 +94,11 @@ model PlayerAggregate {
   adr         Float    @default(0)
   hsPct       Float    @default(0)
   mvps        Int      @default(0)
+  doubleKills Int      @default(0)
   tripleKills Int      @default(0)
   quadroKills Int      @default(0)
   pentaKills  Int      @default(0)
+  rounds      Int      @default(0)
   rating      Float    @default(0)
   updatedAt   DateTime @updatedAt
   player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)

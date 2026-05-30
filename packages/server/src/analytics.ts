@@ -94,6 +94,78 @@ export async function playerMaps(playerId: string): Promise<MapBreakdown[]> {
   return out
 }
 
+// ---- Расширенная статистика игрока (производные метрики) ----
+export interface ExtendedStats {
+  rounds: number
+  perMatch: { kills: number; deaths: number; assists: number }
+  kpr: number // килов в раунд (kills / rounds)
+  dpr: number // смертей в раунд
+  mvpRate: number // MVP за матч
+  multiKills: { double: number; triple: number; quadro: number; penta: number }
+  multiKillFrags: number // 2·2K + 3·3K + 4·4K + 5·5K — вклад мультикиллов
+  consistency: { stdev: number; score: number } // разброс рейтинга по матчам; score 0..100 (выше = ровнее)
+}
+
+interface AggForExtended {
+  matches: number
+  kills: number
+  deaths: number
+  assists: number
+  mvps: number
+  rounds: number
+  doubleKills: number
+  tripleKills: number
+  quadroKills: number
+  pentaKills: number
+}
+
+export async function playerExtended(
+  playerId: string,
+  agg: AggForExtended | null | undefined,
+): Promise<ExtendedStats | null> {
+  if (!agg || !agg.matches) return null
+  const { ratingV1 } = await import('./aggregate.js')
+
+  const m = agg.matches
+  const rounds = agg.rounds
+  const round = (v: number, d = 2) => +v.toFixed(d)
+
+  // стабильность: std рейтинга по матчам (per-row rating через ratingV1)
+  const rows = await prisma.playerMatchStats.findMany({
+    where: { playerId },
+    select: { kd: true, kr: true, adr: true, won: true },
+  })
+  const ratings = rows.map((r) => ratingV1(r.kd, r.kr, r.adr, r.won ? 100 : 0))
+  const mean = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0
+  const variance = ratings.length
+    ? ratings.reduce((a, b) => a + (b - mean) ** 2, 0) / ratings.length
+    : 0
+  const stdev = Math.sqrt(variance)
+  // score: 1.0 std → 0, 0 std → 100 (клампим)
+  const score = Math.max(0, Math.min(100, Math.round((1 - stdev) * 100)))
+
+  return {
+    rounds,
+    perMatch: {
+      kills: round(agg.kills / m, 1),
+      deaths: round(agg.deaths / m, 1),
+      assists: round(agg.assists / m, 1),
+    },
+    kpr: rounds ? round(agg.kills / rounds) : 0,
+    dpr: rounds ? round(agg.deaths / rounds) : 0,
+    mvpRate: round(agg.mvps / m),
+    multiKills: {
+      double: agg.doubleKills,
+      triple: agg.tripleKills,
+      quadro: agg.quadroKills,
+      penta: agg.pentaKills,
+    },
+    multiKillFrags:
+      2 * agg.doubleKills + 3 * agg.tripleKills + 4 * agg.quadroKills + 5 * agg.pentaKills,
+    consistency: { stdev: round(stdev, 3), score },
+  }
+}
+
 // ---- Пиковый рейтинг = лучший рейтинг за ОТДЕЛЬНЫЙ турнир ----
 /**
  * Накопительный (текущий) рейтинг почти не колеблется со временем, поэтому «пик» по нему

@@ -13,7 +13,7 @@ import { syncSource } from './sync.js'
 import { mapsOverview } from './maps.js'
 import { leaderboardByMap } from './statsQuery.js'
 import { getTournamentRankDeltas } from './tournaments.js'
-import { playerForm, playerStreak, playerMaps, peakRating } from './analytics.js'
+import { playerForm, playerStreak, playerMaps, peakRating, playerExtended } from './analytics.js'
 import { headToHead, NotFoundError } from './h2h.js'
 import { searchPlayers } from './search.js'
 
@@ -151,13 +151,15 @@ app.get('/api/players/:id', async (req, reply) => {
   }))
 
   const agg = player.aggregate
-  const [form, maps, peak] = await Promise.all([
+  const [form, maps, peak, extended] = await Promise.all([
     playerForm(id),
     playerMaps(id),
     peakRating(id, agg?.rating ?? 0),
+    playerExtended(id, agg),
   ])
   const streak = playerStreak(stats)
   const multiKills = {
+    double: agg?.doubleKills ?? 0,
     triple: agg?.tripleKills ?? 0,
     quadro: agg?.quadroKills ?? 0,
     penta: agg?.pentaKills ?? 0,
@@ -171,6 +173,7 @@ app.get('/api/players/:id', async (req, reply) => {
     streak,
     peakRating: peak,
     multiKills,
+    extended,
     maps,
   }
 })

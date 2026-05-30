@@ -176,12 +176,18 @@ async function ingestMatch(
         headshots: row.headshots,
         hsPct: row.hsPct,
         mvps: row.mvps,
+        doubleKills: row.doubleKills,
         tripleKills: row.tripleKills,
         quadroKills: row.quadroKills,
         pentaKills: row.pentaKills,
+        rounds: row.rounds,
         finishedAt: row.finishedAt,
       },
-      update: {},
+      update: {
+        doubleKills: row.doubleKills,
+        rounds: row.rounds,
+        won: row.won,
+      },
     })
   }
 }

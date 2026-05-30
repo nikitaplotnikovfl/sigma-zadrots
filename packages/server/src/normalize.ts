@@ -43,9 +43,11 @@ export type ParsedStatsRow = {
   headshots: number
   hsPct: number
   mvps: number
+  doubleKills: number
   tripleKills: number
   quadroKills: number
   pentaKills: number
+  rounds: number
   finishedAt: Date | null
 }
 
@@ -127,6 +129,7 @@ export function parseMatchRounds(
     const mapNum = Number(r.match_round) || 1
     const mapName = r.round_stats?.['Map']
     const mapWinner = r.round_stats?.['Winner']
+    const mapRounds = r.teams.reduce((acc, t) => acc + num(t.team_stats, 'Final Score'), 0)
     for (const team of r.teams) {
       const teamName = team.team_stats?.['Team'] ?? ''
       const teamWon = num(team.team_stats, 'Team Win') === 1 || team.team_id === mapWinner
@@ -151,9 +154,11 @@ export function parseMatchRounds(
           headshots: num(s, 'Headshots'),
           hsPct: num(s, 'Headshots %'),
           mvps: num(s, 'MVPs'),
+          doubleKills: num(s, 'Double Kills'),
           tripleKills: num(s, 'Triple Kills'),
           quadroKills: num(s, 'Quadro Kills'),
           pentaKills: num(s, 'Penta Kills'),
+          rounds: mapRounds,
           finishedAt: finished,
         })
       }

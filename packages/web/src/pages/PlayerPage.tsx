@@ -55,7 +55,18 @@ type FormItem = {
 
 type Streak = { type: 'W' | 'L'; count: number } | null
 
-type MultiKills = { triple: number; quadro: number; penta: number }
+type MultiKills = { double?: number; triple: number; quadro: number; penta: number }
+
+type Extended = {
+  rounds: number
+  perMatch: { kills: number; deaths: number; assists: number }
+  kpr: number
+  dpr: number
+  mvpRate: number
+  multiKills: { double: number; triple: number; quadro: number; penta: number }
+  multiKillFrags: number
+  consistency: { stdev: number; score: number }
+}
 
 type MapBreakdown = {
   map: string
@@ -76,6 +87,7 @@ type PlayerResponse = {
   streak?: Streak
   peakRating?: number
   multiKills?: MultiKills
+  extended?: Extended | null
   maps?: MapBreakdown[]
 }
 

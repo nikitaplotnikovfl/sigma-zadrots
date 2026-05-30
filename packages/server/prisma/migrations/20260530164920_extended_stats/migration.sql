@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "PlayerAggregate" ADD COLUMN     "doubleKills" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "rounds" INTEGER NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "PlayerMatchStats" ADD COLUMN     "doubleKills" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "rounds" INTEGER NOT NULL DEFAULT 0;
