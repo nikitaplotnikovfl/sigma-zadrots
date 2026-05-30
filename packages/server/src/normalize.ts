@@ -48,6 +48,14 @@ export type ParsedStatsRow = {
   quadroKills: number
   pentaKills: number
   rounds: number
+  entryCount: number
+  entryWins: number
+  firstKills: number
+  clutchKills: number
+  clutch1v1Count: number
+  clutch1v1Wins: number
+  clutch1v2Count: number
+  clutch1v2Wins: number
   finishedAt: Date | null
 }
 
@@ -159,6 +167,14 @@ export function parseMatchRounds(
           quadroKills: num(s, 'Quadro Kills'),
           pentaKills: num(s, 'Penta Kills'),
           rounds: mapRounds,
+          entryCount: num(s, 'Entry Count'),
+          entryWins: num(s, 'Entry Wins'),
+          firstKills: num(s, 'First Kills'),
+          clutchKills: num(s, 'Clutch Kills'),
+          clutch1v1Count: num(s, '1v1Count'),
+          clutch1v1Wins: num(s, '1v1Wins'),
+          clutch1v2Count: num(s, '1v2Count'),
+          clutch1v2Wins: num(s, '1v2Wins'),
           finishedAt: finished,
         })
       }

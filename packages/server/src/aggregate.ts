@@ -51,6 +51,14 @@ export async function recomputeAggregates(): Promise<number> {
       quadroKills: sum(list.map((r) => r.quadroKills)),
       pentaKills: sum(list.map((r) => r.pentaKills)),
       rounds: sum(list.map((r) => r.rounds)),
+      entryCount: sum(list.map((r) => r.entryCount)),
+      entryWins: sum(list.map((r) => r.entryWins)),
+      firstKills: sum(list.map((r) => r.firstKills)),
+      clutchKills: sum(list.map((r) => r.clutchKills)),
+      clutch1v1Count: sum(list.map((r) => r.clutch1v1Count)),
+      clutch1v1Wins: sum(list.map((r) => r.clutch1v1Wins)),
+      clutch1v2Count: sum(list.map((r) => r.clutch1v2Count)),
+      clutch1v2Wins: sum(list.map((r) => r.clutch1v2Wins)),
       rating: ratingV1(kd, kr, adr, winrate),
     }
     await prisma.playerAggregate.upsert({

@@ -166,6 +166,56 @@ export async function playerExtended(
   }
 }
 
+// ---- Дуэли: Entry/Opening и клатчи (чисто из агрегата) ----
+export interface DuelStats {
+  entryCount: number
+  entryWins: number
+  entrySuccess: number // entryWins/entryCount*100, 1 знак
+  firstKills: number
+  firstKillsPerMatch: number // firstKills/matches, 1 знак
+  clutchKills: number
+  clutch1v1: { count: number; wins: number; rate: number }
+  clutch1v2: { count: number; wins: number; rate: number }
+}
+
+interface AggForDuels {
+  matches: number
+  entryCount: number
+  entryWins: number
+  firstKills: number
+  clutchKills: number
+  clutch1v1Count: number
+  clutch1v1Wins: number
+  clutch1v2Count: number
+  clutch1v2Wins: number
+}
+
+export function playerDuels(
+  _playerId: string,
+  agg: AggForDuels | null | undefined,
+): DuelStats | null {
+  if (!agg || !agg.matches) return null
+  const rate = (wins: number, count: number) => (count ? +((wins / count) * 100).toFixed(1) : 0)
+  return {
+    entryCount: agg.entryCount,
+    entryWins: agg.entryWins,
+    entrySuccess: rate(agg.entryWins, agg.entryCount),
+    firstKills: agg.firstKills,
+    firstKillsPerMatch: +(agg.firstKills / agg.matches).toFixed(1),
+    clutchKills: agg.clutchKills,
+    clutch1v1: {
+      count: agg.clutch1v1Count,
+      wins: agg.clutch1v1Wins,
+      rate: rate(agg.clutch1v1Wins, agg.clutch1v1Count),
+    },
+    clutch1v2: {
+      count: agg.clutch1v2Count,
+      wins: agg.clutch1v2Wins,
+      rate: rate(agg.clutch1v2Wins, agg.clutch1v2Count),
+    },
+  }
+}
+
 // ---- Пиковый рейтинг = лучший рейтинг за ОТДЕЛЬНЫЙ турнир ----
 /**
  * Накопительный (текущий) рейтинг почти не колеблется со временем, поэтому «пик» по нему

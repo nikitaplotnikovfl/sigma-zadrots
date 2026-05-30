@@ -78,6 +78,19 @@ type MapBreakdown = {
   hsPct: number
 }
 
+type ClutchStat = { count: number; wins: number; rate: number }
+
+type Duels = {
+  entryCount: number
+  entryWins: number
+  entrySuccess: number
+  firstKills: number
+  firstKillsPerMatch: number
+  clutchKills: number
+  clutch1v1: ClutchStat
+  clutch1v2: ClutchStat
+}
+
 type PlayerResponse = {
   player: Player
   aggregate: Aggregate | null
@@ -89,6 +102,7 @@ type PlayerResponse = {
   multiKills?: MultiKills
   extended?: Extended | null
   maps?: MapBreakdown[]
+  duels?: Duels | null
 }
 
 function num(v: unknown, fallback = 0): number {
@@ -924,6 +938,7 @@ export function PlayerPage() {
   const multiKills = state.data.multiKills
   const extended = state.data.extended
   const maps = state.data.maps ?? []
+  const duels = state.data.duels
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-4 py-8">
@@ -995,6 +1010,37 @@ export function PlayerPage() {
               label="Стабильность"
               value={`${extended.consistency.score}/100`}
               hint={`σ ${extended.consistency.stdev.toFixed(2)}`}
+            />
+          </div>
+        </section>
+      )}
+
+      {/* Entry & Клатчи */}
+      {duels && (
+        <section className="space-y-4">
+          <NeonChip color="magenta">Entry &amp; Клатчи</NeonChip>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <ExtTile label="Entry-фрагов" value={String(num(duels.entryCount))} />
+            <ExtTile
+              label="Entry успех"
+              value={`${num(duels.entrySuccess).toFixed(1)}%`}
+              hint={`${num(duels.entryWins)}/${num(duels.entryCount)}`}
+            />
+            <ExtTile label="Перв. киллов" value={String(num(duels.firstKills))} />
+            <ExtTile
+              label="Перв.килл/матч"
+              value={num(duels.firstKillsPerMatch).toFixed(1)}
+            />
+            <ExtTile label="Клатч-килы" value={String(num(duels.clutchKills))} />
+            <ExtTile
+              label="1v1"
+              value={`${num(duels.clutch1v1.wins)}/${num(duels.clutch1v1.count)}`}
+              hint={`${num(duels.clutch1v1.rate).toFixed(1)}%`}
+            />
+            <ExtTile
+              label="1v2"
+              value={`${num(duels.clutch1v2.wins)}/${num(duels.clutch1v2.count)}`}
+              hint={`${num(duels.clutch1v2.rate).toFixed(1)}%`}
             />
           </div>
         </section>
