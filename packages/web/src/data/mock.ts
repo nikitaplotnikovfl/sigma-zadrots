@@ -19,6 +19,7 @@ export type PlayerRow = {
   hsPct: number // %
   mvps: number
   rating: number
+  rankDelta?: number | null // движение в рейтинге относительно прошлого снапшота
 }
 
 const NICKS = [

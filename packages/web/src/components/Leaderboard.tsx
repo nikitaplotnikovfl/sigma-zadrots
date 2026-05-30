@@ -58,6 +58,8 @@ export function Leaderboard({ map }: { map?: string } = {}) {
   const [maps, setMaps] = useState<MapRow[]>([])
 
   const activeMap = fixedMap ? map : selectedMap
+  // На странице/фильтре карты rankDelta не приходит — индикатор движения скрываем.
+  const showDelta = !activeMap
 
   useEffect(() => {
     if (fixedMap) return
@@ -156,17 +158,17 @@ export function Leaderboard({ map }: { map?: string } = {}) {
       </div>
 
       <NeonCard color="purple" className="overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="max-h-[75vh] overflow-auto">
           <table className="w-full border-collapse text-sm">
-            <thead>
+            <thead className="sticky top-0 z-20">
               <tr className="text-text-dim">
-                <Th className="w-14 text-center">#</Th>
-                <Th className="text-left">Игрок</Th>
+                <Th className="sticky left-0 z-30 w-14 bg-bg-soft text-center">#</Th>
+                <Th className="sticky left-14 z-30 bg-bg-soft text-left">Игрок</Th>
                 {COLUMNS.map((c) => (
                   <th
                     key={c.key}
                     onClick={() => toggleSort(c.key)}
-                    className="cursor-pointer select-none whitespace-nowrap px-3 py-3 text-right font-display text-xs uppercase tracking-wider transition hover:text-neon-magenta"
+                    className="cursor-pointer select-none whitespace-nowrap bg-bg-soft px-3 py-3 text-right font-display text-xs uppercase tracking-wider transition hover:text-neon-magenta"
                   >
                     {c.label}
                     <span className="ml-1 inline-block w-2 text-neon-magenta">
@@ -182,10 +184,13 @@ export function Leaderboard({ map }: { map?: string } = {}) {
                   key={p.id}
                   className="group border-t border-neon-purple/15 transition hover:bg-neon-purple/10"
                 >
-                  <td className="px-3 py-3 text-center">
-                    <RankBadge rank={i + 1} />
+                  <td className="sticky left-0 z-10 w-14 bg-bg-soft px-3 py-3 text-center group-hover:bg-[#211733]">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <RankBadge rank={i + 1} />
+                      {showDelta && <RankDelta delta={p.rankDelta} />}
+                    </div>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="sticky left-14 z-10 bg-bg-soft px-3 py-3 group-hover:bg-[#211733]">
                     <div className="flex items-center gap-3">
                       <div className="grid h-9 w-9 place-items-center rounded-full border border-neon-magenta/50 bg-bg-elev font-display text-xs text-neon-magenta">
                         {p.nickname.slice(0, 2).toUpperCase()}
@@ -246,4 +251,31 @@ function RankBadge({ rank }: { rank: number }) {
     return <span className={`font-display text-lg font-black ${color}`}>{rank}</span>
   }
   return <span className="text-text-dim">{rank}</span>
+}
+
+// Индикатор движения в рейтинге относительно прошлого снапшота.
+// >0 — поднялся (cyan ▲N), <0 — упал (magenta ▼N), 0 — без изменений (серое –), null/undefined — новичок («new»).
+function RankDelta({ delta }: { delta?: number | null }) {
+  if (delta === null || delta === undefined) {
+    return (
+      <span className="rounded border border-neon-purple/50 px-1 text-[9px] font-bold uppercase leading-tight tracking-wider text-neon-purple">
+        new
+      </span>
+    )
+  }
+  if (delta > 0) {
+    return (
+      <span className="flex items-center text-[11px] font-bold leading-none text-neon-cyan neon-text-cyan">
+        ▲{delta}
+      </span>
+    )
+  }
+  if (delta < 0) {
+    return (
+      <span className="flex items-center text-[11px] font-bold leading-none text-neon-magenta neon-text-magenta">
+        ▼{Math.abs(delta)}
+      </span>
+    )
+  }
+  return <span className="text-[11px] leading-none text-text-dim">–</span>
 }

@@ -12,6 +12,10 @@ import { logger } from './logger.js'
 import { syncSource } from './sync.js'
 import { mapsOverview } from './maps.js'
 import { leaderboardByMap } from './statsQuery.js'
+import { getRankDeltas } from './snapshots.js'
+import { playerForm, playerStreak, playerMaps, peakRating } from './analytics.js'
+import { headToHead, NotFoundError } from './h2h.js'
+import { searchPlayers } from './search.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -71,7 +75,7 @@ app.get('/api/leaderboard', async (req, reply) => {
     ...(q ? { player: { nickname: { contains: q } } } : {}),
   }
 
-  const [total, rows] = await Promise.all([
+  const [total, rows, deltas] = await Promise.all([
     prisma.playerAggregate.count({ where }),
     prisma.playerAggregate.findMany({
       where,
@@ -80,6 +84,7 @@ app.get('/api/leaderboard', async (req, reply) => {
       take: pageSize,
       include: { player: true },
     }),
+    getRankDeltas(),
   ])
 
   const items = rows.map((r, i) => ({
@@ -100,6 +105,7 @@ app.get('/api/leaderboard', async (req, reply) => {
     hsPct: r.hsPct,
     mvps: r.mvps,
     rating: r.rating,
+    rankDelta: deltas.has(r.playerId) ? deltas.get(r.playerId)! : null,
   }))
 
   return { total, page, pageSize, sort, order, items }
@@ -135,16 +141,85 @@ app.get('/api/players/:id', async (req, reply) => {
     finishedAt: s.finishedAt,
   }))
 
-  return { player: { ...player, aggregate: undefined }, aggregate: player.aggregate, history }
+  const agg = player.aggregate
+  const [form, maps, peak] = await Promise.all([
+    playerForm(id),
+    playerMaps(id),
+    peakRating(id, agg?.rating ?? 0),
+  ])
+  const streak = playerStreak(stats)
+  const multiKills = {
+    triple: agg?.tripleKills ?? 0,
+    quadro: agg?.quadroKills ?? 0,
+    penta: agg?.pentaKills ?? 0,
+  }
+
+  return {
+    player: { ...player, aggregate: undefined },
+    aggregate: player.aggregate,
+    history,
+    form,
+    streak,
+    peakRating: peak,
+    multiKills,
+    maps,
+  }
 })
 
-app.get('/api/matches', async (req) => {
-  const { page = '1', pageSize = '30' } = req.query as Record<string, string>
-  const p = Math.max(1, Number(page))
-  const ps = Math.min(100, Math.max(1, Number(pageSize)))
+app.get('/api/h2h', async (req, reply) => {
+  const { a, b } = req.query as Record<string, string>
+  if (!a || !b) return reply.code(400).send({ error: 'a and b are required' })
+  try {
+    return await headToHead(a, b)
+  } catch (e) {
+    if (e instanceof NotFoundError) return reply.code(404).send({ error: e.message })
+    throw e
+  }
+})
+
+const searchQuery = z.object({
+  q: z.string().trim().min(1),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+})
+
+app.get('/api/search', async (req, reply) => {
+  const parsed = searchQuery.safeParse(req.query)
+  if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() })
+  const { q, limit } = parsed.data
+  return { items: await searchPlayers(q, limit) }
+})
+
+app.get('/api/matches', async (req, reply) => {
+  const q = req.query as Record<string, string>
+  const p = Math.max(1, Number(q.page ?? '1'))
+  const ps = Math.min(100, Math.max(1, Number(q.pageSize ?? '30')))
+
+  const finishedAt: { gte?: Date; lte?: Date } = {}
+  if (q.from) {
+    const d = new Date(q.from)
+    if (Number.isNaN(d.getTime())) return reply.code(400).send({ error: 'invalid from date' })
+    finishedAt.gte = d
+  }
+  if (q.to) {
+    const d = new Date(q.to)
+    if (Number.isNaN(d.getTime())) return reply.code(400).send({ error: 'invalid to date' })
+    finishedAt.lte = d
+  }
+
+  // stats some: фильтр по карте и/или игроку — объединяем в один some, чтобы условия
+  // выполнялись на одной и той же строке статистики (карта игрока).
+  const someStats: Record<string, unknown> = {}
+  if (q.map) someStats.mapName = q.map
+  if (q.player) someStats.playerId = q.player
+
+  const where: Record<string, unknown> = {}
+  if (Object.keys(someStats).length) where.stats = { some: someStats }
+  if (finishedAt.gte || finishedAt.lte) where.finishedAt = finishedAt
+
   const [total, rows] = await Promise.all([
-    prisma.match.count(),
+    prisma.match.count({ where }),
     prisma.match.findMany({
+      where,
       orderBy: { finishedAt: 'desc' },
       skip: (p - 1) * ps,
       take: ps,

@@ -55,6 +55,7 @@ export async function fetchLeaderboard(opts?: { map?: string }): Promise<Leaderb
       hsPct: it.hsPct,
       mvps: it.mvps,
       rating: it.rating,
+      rankDelta: it.rankDelta ?? null,
     }))
     return { rows, live: true }
   } catch {

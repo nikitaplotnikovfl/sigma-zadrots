@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { NeonCard, NeonChip } from '../components/Neon'
 
+type NeonColor = 'magenta' | 'purple' | 'cyan'
+
 type Player = {
   id: string
   nickname: string
@@ -42,10 +44,43 @@ type HistoryItem = {
   finishedAt: string
 }
 
+type FormItem = {
+  matchId: string
+  mapName: string
+  won: boolean
+  kd: number
+  adr: number
+  finishedAt: string
+}
+
+type Streak = { type: 'W' | 'L'; count: number } | null
+
+type MultiKills = { triple: number; quadro: number; penta: number }
+
+type MapBreakdown = {
+  map: string
+  matches: number
+  wins: number
+  winrate: number
+  kd: number
+  adr: number
+  hsPct: number
+}
+
 type PlayerResponse = {
   player: Player
   aggregate: Aggregate | null
   history: HistoryItem[]
+  // Новые поля аналитики (могут отсутствовать пока бэкенд не задеплоен)
+  form?: FormItem[]
+  streak?: Streak
+  peakRating?: number
+  multiKills?: MultiKills
+  maps?: MapBreakdown[]
+}
+
+function num(v: unknown, fallback = 0): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback
 }
 
 type LoadState =
@@ -473,6 +508,336 @@ function HistoryTable({ history }: { history: HistoryItem[] }) {
   )
 }
 
+// ---- Форма / стрик / пик рейтинга ----
+
+function FormBlock({
+  form,
+  streak,
+  peakRating,
+  currentRating,
+}: {
+  form: FormItem[]
+  streak: Streak
+  peakRating: number | undefined
+  currentRating: number | undefined
+}) {
+  // form: свежие первыми -> для полоски показываем слева старые, справа свежие
+  const cells = [...form].reverse()
+
+  return (
+    <NeonCard color="cyan" className="px-5 py-5 sm:px-6">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+        {/* Полоска последних матчей */}
+        <div className="min-w-0 flex-1">
+          <div className="font-display text-xs uppercase tracking-[0.2em] text-text-dim">
+            Последние матчи
+          </div>
+          {cells.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {cells.map((f) => (
+                <span
+                  key={f.matchId}
+                  title={`${f.mapName} · K/D ${num(f.kd).toFixed(2)} · ADR ${num(f.adr).toFixed(0)} · ${fmtDate(f.finishedAt)}`}
+                  className={`grid h-8 w-8 place-items-center rounded-md border font-display text-sm font-black ${
+                    f.won
+                      ? 'border-neon-cyan/70 text-neon-cyan neon-text-cyan shadow-neon-cyan'
+                      : 'border-neon-magenta/70 text-neon-magenta neon-text-magenta shadow-neon-magenta'
+                  }`}
+                >
+                  {f.won ? 'W' : 'L'}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-2 text-sm text-text-dim">Нет данных о форме.</div>
+          )}
+        </div>
+
+        {/* Текущий стрик */}
+        <div>
+          <div className="font-display text-xs uppercase tracking-[0.2em] text-text-dim">
+            Серия
+          </div>
+          {streak && streak.count > 0 ? (
+            <div
+              className={`mt-2 font-display text-2xl font-black tabular-nums ${
+                streak.type === 'W'
+                  ? 'text-neon-cyan neon-text-cyan'
+                  : 'text-neon-magenta neon-text-magenta'
+              }`}
+            >
+              {streak.type}×{streak.count}
+            </div>
+          ) : (
+            <div className="mt-2 font-display text-2xl font-black text-text-dim">—</div>
+          )}
+        </div>
+
+        {/* Пик рейтинга рядом с текущим */}
+        <div>
+          <div className="font-display text-xs uppercase tracking-[0.2em] text-text-dim">
+            Пик / тек. рейтинг
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="font-display text-2xl font-black tabular-nums text-neon-purple">
+              {peakRating != null ? num(peakRating).toFixed(2) : '—'}
+            </span>
+            <span className="font-display text-lg font-bold tabular-nums text-text-dim">
+              / {currentRating != null ? num(currentRating).toFixed(2) : '—'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </NeonCard>
+  )
+}
+
+// ---- Мультикиллы ----
+
+function MultiKillTiles({ mk }: { mk: MultiKills }) {
+  const tiles: { label: string; value: number; color: NeonColor }[] = [
+    { label: '3K (Triple)', value: num(mk.triple), color: 'cyan' },
+    { label: '4K (Quadro)', value: num(mk.quadro), color: 'purple' },
+    { label: '5K (Ace)', value: num(mk.penta), color: 'magenta' },
+  ]
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {tiles.map((t) => (
+        <NeonCard key={t.label} color={t.color} className="px-4 py-4 text-center">
+          <div className="font-display text-xs uppercase tracking-[0.18em] text-text-dim">
+            {t.label}
+          </div>
+          <div
+            className={`mt-2 font-display text-3xl font-black tabular-nums sm:text-4xl ${KPI_TEXT[t.color]}`}
+          >
+            {t.value}
+          </div>
+        </NeonCard>
+      ))}
+    </div>
+  )
+}
+
+// ---- Разбивка по картам ----
+
+const MAP_COLS = [
+  { label: 'Карта', align: 'text-left' as const },
+  { label: 'Матчи', align: 'text-right' as const },
+  { label: 'Винрейт', align: 'text-right' as const },
+  { label: 'K/D', align: 'text-right' as const },
+  { label: 'ADR', align: 'text-right' as const },
+  { label: 'HS%', align: 'text-right' as const },
+]
+
+function MapsTable({ maps }: { maps: MapBreakdown[] }) {
+  // сортировка по matches desc (на случай если бэкенд не отсортировал)
+  const sorted = [...maps].sort((a, b) => num(b.matches) - num(a.matches))
+  return (
+    <NeonCard color="cyan" className="overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="text-text-dim">
+              {MAP_COLS.map((c) => (
+                <th
+                  key={c.label}
+                  className={`whitespace-nowrap px-3 py-3 font-display text-xs uppercase tracking-wider ${c.align}`}
+                >
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((m) => (
+              <tr
+                key={m.map}
+                className="border-t border-neon-cyan/15 transition hover:bg-neon-cyan/10"
+              >
+                <td className="whitespace-nowrap px-3 py-3 font-semibold text-text">
+                  {m.map}
+                </td>
+                <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-text">
+                  {num(m.matches)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-text">
+                  {num(m.winrate).toFixed(0)}%
+                </td>
+                <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-text">
+                  {num(m.kd).toFixed(2)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-text">
+                  {num(m.adr).toFixed(1)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-text">
+                  {num(m.hsPct).toFixed(1)}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </NeonCard>
+  )
+}
+
+// ---- Шаринг-карточка ----
+
+function svgEscape(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+function buildShareSvg(player: Player, agg: Aggregate | null): string {
+  const W = 1200
+  const H = 630
+  const flag = countryFlag(player.country)
+  const nick = svgEscape(player.nickname)
+
+  const kpis: { label: string; value: string }[] = [
+    { label: 'RATING', value: agg ? num(agg.rating).toFixed(2) : '—' },
+    { label: 'K/D', value: agg ? num(agg.kd).toFixed(2) : '—' },
+    { label: 'ADR', value: agg ? num(agg.adr).toFixed(1) : '—' },
+    { label: 'WINRATE', value: agg ? `${num(agg.winrate).toFixed(0)}%` : '—' },
+    { label: 'MATCHES', value: agg ? String(num(agg.matches)) : '—' },
+  ]
+
+  const colCount = kpis.length
+  const gap = 28
+  const marginX = 80
+  const tileW = (W - marginX * 2 - gap * (colCount - 1)) / colCount
+  const tileH = 150
+  const tileY = 360
+
+  const tilesSvg = kpis
+    .map((k, i) => {
+      const x = marginX + i * (tileW + gap)
+      const cx = x + tileW / 2
+      return `
+    <rect x="${x.toFixed(1)}" y="${tileY}" width="${tileW.toFixed(1)}" height="${tileH}" rx="18"
+          fill="#120822" stroke="url(#edge)" stroke-width="2" filter="url(#soft)"/>
+    <text x="${cx.toFixed(1)}" y="${tileY + 60}" text-anchor="middle"
+          font-family="Orbitron, Arial, sans-serif" font-size="26" letter-spacing="4"
+          fill="#b9a9d6">${k.label}</text>
+    <text x="${cx.toFixed(1)}" y="${tileY + 118}" text-anchor="middle"
+          font-family="Orbitron, Arial, sans-serif" font-weight="900" font-size="54"
+          fill="#2de2ff" filter="url(#glow)">${svgEscape(k.value)}</text>`
+    })
+    .join('')
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a0414"/>
+      <stop offset="100%" stop-color="#15071f"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#b026ff"/>
+      <stop offset="100%" stop-color="#2de2ff"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2"/>
+    </filter>
+  </defs>
+
+  <rect width="${W}" height="${H}" fill="url(#bg)"/>
+  <rect x="20" y="20" width="${W - 40}" height="${H - 40}" rx="28"
+        fill="none" stroke="url(#edge)" stroke-width="3" filter="url(#soft)"/>
+
+  <text x="${marginX}" y="100" font-family="Orbitron, Arial, sans-serif" font-weight="900"
+        font-size="40" letter-spacing="6" fill="#ff2bd6" filter="url(#glow)">SIGMA</text>
+  <text x="${marginX + 230}" y="100" font-family="Orbitron, Arial, sans-serif" font-weight="700"
+        font-size="40" letter-spacing="14" fill="#2de2ff" filter="url(#glow)">ZADROTS</text>
+
+  <text x="${marginX}" y="250" font-family="Orbitron, Arial, sans-serif" font-weight="900"
+        font-size="92" fill="#f4ecff" filter="url(#glow)">${nick}</text>
+  <text x="${marginX}" y="320" font-family="Arial, sans-serif" font-size="44"
+        fill="#b9a9d6">${svgEscape(flag)} ${svgEscape(player.country ?? '')}</text>
+
+  ${tilesSvg}
+</svg>`
+}
+
+function ShareButtons({
+  player,
+  aggregate,
+}: {
+  player: Player
+  aggregate: Aggregate | null
+}) {
+  const [copied, setCopied] = useState(false)
+
+  const handleShare = () => {
+    try {
+      const svg = buildShareSvg(player, aggregate)
+      const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const safe = player.nickname.replace(/[^a-zA-Z0-9_-]+/g, '_') || 'player'
+      a.download = `sigma-zadrots-${safe}.svg`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      /* мягко игнорируем сбои генерации/скачивания */
+    }
+  }
+
+  const handleCopy = () => {
+    const link =
+      typeof window !== 'undefined' ? window.location.href : ''
+    const done = () => {
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    }
+    try {
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(link).then(done).catch(() => undefined)
+      }
+    } catch {
+      /* clipboard недоступен — мягко игнорируем */
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap gap-3">
+      <button
+        type="button"
+        onClick={handleShare}
+        className="inline-flex items-center gap-2 rounded-xl border border-neon-magenta/70 bg-bg-soft/70 px-5 py-2 font-display text-sm font-bold uppercase tracking-[0.2em] text-neon-magenta neon-text-magenta transition hover:shadow-neon-magenta"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+          <polyline points="8 8 12 4 16 8" />
+          <line x1="12" y1="4" x2="12" y2="16" />
+        </svg>
+        Поделиться
+      </button>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="inline-flex items-center gap-2 rounded-xl border border-neon-cyan/70 bg-bg-soft/70 px-5 py-2 font-display text-sm font-bold uppercase tracking-[0.2em] text-neon-cyan neon-text-cyan transition hover:shadow-neon-cyan"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+        {copied ? 'Скопировано!' : 'Скопировать ссылку'}
+      </button>
+    </div>
+  )
+}
+
 // ---- Главный компонент ----
 
 export function PlayerPage() {
@@ -528,10 +893,29 @@ export function PlayerPage() {
     return <ErrorView onRetry={() => setState({ status: 'loading' })} />
 
   const { player, aggregate, history } = state.data
+  const form = state.data.form ?? []
+  const streak = state.data.streak ?? null
+  const peakRating = state.data.peakRating
+  const multiKills = state.data.multiKills
+  const maps = state.data.maps ?? []
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-4 py-8">
       <PlayerHeader player={player} />
+
+      {/* Шаринг */}
+      <ShareButtons player={player} aggregate={aggregate} />
+
+      {/* Форма / стрик / пик рейтинга */}
+      <section className="space-y-4">
+        <NeonChip color="cyan">Форма</NeonChip>
+        <FormBlock
+          form={form}
+          streak={streak}
+          peakRating={peakRating ?? aggregate?.rating}
+          currentRating={aggregate?.rating}
+        />
+      </section>
 
       {/* KPI */}
       <section className="space-y-4">
@@ -545,6 +929,38 @@ export function PlayerPage() {
         ) : (
           <NeonCard color="purple" className="px-6 py-10 text-center text-text-dim">
             Пока нет агрегированной статистики по этому игроку.
+          </NeonCard>
+        )}
+      </section>
+
+      {/* Мультикиллы */}
+      <section className="space-y-4">
+        <NeonChip color="magenta">Мультикиллы</NeonChip>
+        {multiKills ? (
+          <MultiKillTiles mk={multiKills} />
+        ) : aggregate ? (
+          <MultiKillTiles
+            mk={{
+              triple: aggregate.tripleKills,
+              quadro: aggregate.quadroKills,
+              penta: aggregate.pentaKills,
+            }}
+          />
+        ) : (
+          <NeonCard color="purple" className="px-6 py-10 text-center text-text-dim">
+            Нет данных о мультикиллах.
+          </NeonCard>
+        )}
+      </section>
+
+      {/* По картам */}
+      <section className="space-y-4">
+        <NeonChip color="cyan">По картам</NeonChip>
+        {maps.length > 0 ? (
+          <MapsTable maps={maps} />
+        ) : (
+          <NeonCard color="purple" className="px-6 py-10 text-center text-text-dim">
+            Нет разбивки по картам.
           </NeonCard>
         )}
       </section>

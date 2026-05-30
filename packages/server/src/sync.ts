@@ -3,6 +3,7 @@ import { faceit, type MatchStatsRound } from './faceit.js'
 import { env } from './env.js'
 import { logger } from './logger.js'
 import { recomputeAggregates } from './aggregate.js'
+import { writeRankSnapshot } from './snapshots.js'
 import { parseMatchRounds } from './normalize.js'
 
 const log = logger.child({ mod: 'sync' })
@@ -70,6 +71,8 @@ export async function syncSource(): Promise<SyncResult> {
     }
 
     const players = await recomputeAggregates()
+    const ranked = await writeRankSnapshot()
+    log.info({ ranked }, 'rank snapshot written')
     await prisma.syncRun.update({
       where: { id: run.id },
       data: { finishedAt: new Date(), matchesSeen: seen, matchesNew: added, status: 'ok' },
