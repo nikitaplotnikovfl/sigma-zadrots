@@ -39,10 +39,14 @@ function prettyMap(map: string): string {
 }
 
 export function Leaderboard({ map }: { map?: string } = {}) {
+  // Базовый порог: на общем лидерборде показываем игроков от 10 матчей,
+  // на странице конкретной карты порога нет (иначе редкие карты опустеют).
+  // Авторитетный фильтр — на бэкенде (env LEADERBOARD_MIN_MATCHES); здесь дефолт UI.
+  const minFloor = typeof map === 'string' ? 0 : 10
   const [sortKey, setSortKey] = useState<SortKey>('rating')
   const [asc, setAsc] = useState(false)
   const [query, setQuery] = useState('')
-  const [minMatches, setMinMatches] = useState(0)
+  const [minMatches, setMinMatches] = useState(minFloor)
   const [data, setData] = useState<PlayerRow[]>([])
   const [live, setLive] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -129,9 +133,9 @@ export function Leaderboard({ map }: { map?: string } = {}) {
           Мин. матчей
           <input
             type="number"
-            min={0}
+            min={minFloor}
             value={minMatches}
-            onChange={(e) => setMinMatches(Math.max(0, Number(e.target.value) || 0))}
+            onChange={(e) => setMinMatches(Math.max(minFloor, Number(e.target.value) || 0))}
             className="w-20 rounded-lg border border-neon-purple/50 bg-bg-soft/80 px-3 py-2 text-sm text-text outline-none focus:border-neon-cyan focus:shadow-neon-cyan"
           />
         </label>

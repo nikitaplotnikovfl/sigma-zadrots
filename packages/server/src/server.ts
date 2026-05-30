@@ -64,8 +64,10 @@ app.get('/api/leaderboard', async (req, reply) => {
     return { total, page, pageSize, sort, order, items }
   }
 
+  // Общий лидерборд: жёсткий базовый порог по матчам (env), запрошенный minMatches может только повысить его.
+  const effectiveMin = Math.max(minMatches, env.leaderboardMinMatches)
   const where = {
-    matches: { gte: minMatches },
+    matches: { gte: effectiveMin },
     ...(q ? { player: { nickname: { contains: q } } } : {}),
   }
 

@@ -25,4 +25,6 @@ export const env = {
   minIntervalMs: Number(process.env.SYNC_MIN_INTERVAL_MS ?? 600),
   logLevel: process.env.LOG_LEVEL ?? 'info',
   isProd: process.env.NODE_ENV === 'production',
+  // Минимум матчей (игр по картам), чтобы игрок попал в общий лидерборд.
+  leaderboardMinMatches: Number(process.env.LEADERBOARD_MIN_MATCHES ?? 10),
 }
