@@ -41,6 +41,7 @@ type PlayerStat = {
   adr: number
   hsPct: number
   mvps: number
+  rating: number
 }
 
 type MatchResponse = {
@@ -98,13 +99,14 @@ function CenterMessage({
 type StatColumn = {
   key: keyof Pick<
     PlayerStat,
-    'kills' | 'deaths' | 'assists' | 'kd' | 'adr' | 'hsPct' | 'mvps'
+    'rating' | 'kills' | 'deaths' | 'assists' | 'kd' | 'adr' | 'hsPct' | 'mvps'
   >
   label: string
   fmt?: (v: number) => string
 }
 
 const STAT_COLUMNS: StatColumn[] = [
+  { key: 'rating', label: 'Рейтинг', fmt: (v) => v.toFixed(2) },
   { key: 'kills', label: 'K' },
   { key: 'deaths', label: 'D' },
   { key: 'assists', label: 'A' },
@@ -124,7 +126,7 @@ function TeamStatsTable({
   isWinner: boolean
 }) {
   const sorted = useMemo(
-    () => [...rows].sort((a, b) => b.kills - a.kills),
+    () => [...rows].sort((a, b) => b.rating - a.rating),
     [rows],
   )
 
@@ -193,12 +195,12 @@ function TeamStatsTable({
                 </td>
                 {STAT_COLUMNS.map((c) => {
                   const v = p[c.key]
-                  const isKills = c.key === 'kills'
+                  const isRating = c.key === 'rating'
                   return (
                     <td
                       key={c.key}
                       className={`whitespace-nowrap px-3 py-3 text-right tabular-nums ${
-                        isKills
+                        isRating
                           ? 'font-display font-bold text-neon-cyan neon-text-cyan'
                           : 'text-text'
                       }`}

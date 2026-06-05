@@ -11,6 +11,7 @@ import { env } from './env.js'
 import { logger } from './logger.js'
 import { syncSource } from './sync.js'
 import { mapsOverview } from './maps.js'
+import { hltvRating } from './aggregate.js'
 import { leaderboardByMap } from './statsQuery.js'
 import {
   getTournamentRankDeltas,
@@ -305,6 +306,13 @@ app.get('/api/matches/:id', async (req, reply) => {
       adr: s.adr,
       hsPct: s.hsPct,
       mvps: s.mvps,
+      // HLTV 1.0 за эту карту (по реальным раундам карты)
+      rating: hltvRating(s.kills, s.deaths, s.rounds, {
+        double: s.doubleKills,
+        triple: s.tripleKills,
+        quadro: s.quadroKills,
+        penta: s.pentaKills,
+      }),
     })),
   }
 })
