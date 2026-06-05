@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { aggregateRows, type StatsRow } from '../src/statsQuery.js'
-import { ratingV1 } from '../src/aggregate.js'
+import { hltvRating } from '../src/aggregate.js'
 
 const mkPlayer = (nickname: string) => ({ nickname, avatar: null, country: null })
 
@@ -13,6 +13,11 @@ const row = (over: Partial<StatsRow> & Pick<StatsRow, 'playerId' | 'player'>): S
   adr: 0,
   headshots: 0,
   mvps: 0,
+  rounds: 24,
+  doubleKills: 0,
+  tripleKills: 0,
+  quadroKills: 0,
+  pentaKills: 0,
   ...over,
 })
 
@@ -32,8 +37,8 @@ describe('aggregateRows', () => {
 
   it('computes kd, winrate, kr/adr averages, hsPct and rating', () => {
     const rows: StatsRow[] = [
-      row({ playerId: 'a', player: mkPlayer('Alice'), won: true, kills: 20, deaths: 10, kr: 0.8, adr: 90, headshots: 10 }),
-      row({ playerId: 'a', player: mkPlayer('Alice'), won: false, kills: 10, deaths: 10, kr: 0.6, adr: 70, headshots: 5 }),
+      row({ playerId: 'a', player: mkPlayer('Alice'), won: true, kills: 20, deaths: 10, kr: 0.8, adr: 90, headshots: 10, rounds: 24, doubleKills: 3 }),
+      row({ playerId: 'a', player: mkPlayer('Alice'), won: false, kills: 10, deaths: 10, kr: 0.6, adr: 70, headshots: 5, rounds: 20, doubleKills: 1 }),
     ]
     const [a] = aggregateRows(rows)
     expect(a.kd).toBe(1.5) // 30/20
@@ -41,7 +46,10 @@ describe('aggregateRows', () => {
     expect(a.kr).toBe(0.7) // avg(0.8,0.6)
     expect(a.adr).toBe(80) // avg(90,70)
     expect(a.hsPct).toBe(50) // 15/30*100
-    expect(a.rating).toBe(ratingV1(1.5, 0.7, 80, 50))
+    // rating = HLTV 1.0 по суммарным kills/deaths/rounds и мультикиллам
+    expect(a.rating).toBe(
+      hltvRating(30, 20, 44, { double: 4, triple: 0, quadro: 0, penta: 0 }),
+    )
   })
 
   it('handles zero deaths (kd=kills) and zero kills (hsPct=0)', () => {

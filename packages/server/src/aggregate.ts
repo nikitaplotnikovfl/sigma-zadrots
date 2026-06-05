@@ -1,13 +1,33 @@
 import { prisma } from './db.js'
 
+// Константы HLTV 1.0 (средние по большой выборке матчей) — те же, что использует индустрия.
+const AVG_KPR = 0.679 // средние киллы за раунд
+const AVG_SPR = 0.317 // средняя выживаемость за раунд (не умер)
+const AVG_RMK = 1.277 // средний RoundsWithMultipleKills-вес
+
+export type MultiKills = { double: number; triple: number; quadro: number; penta: number }
+
 /**
- * Рейтинг v1 (приближение, документировано в SPEC.md):
- *   rating = 0.4·K/D + 0.3·(K/R ÷ 0.7) + 0.2·(ADR ÷ 80) + 0.1·winrate
- * Центрируется около ~1.0 для среднего игрока. Легко заменить на HLTV-подобный,
- * когда появятся раунды/KAST.
+ * HLTV 1.0 Rating — индустриальный стандарт, тот же, что показывают сайты аналитики CS.
+ *   KillRating = (Kills/Rounds) / 0.679
+ *   Survival   = ((Rounds−Deaths)/Rounds) / 0.317
+ *   RoundsWMK  = (1·1K + 4·2K + 9·3K + 16·4K + 25·5K) / Rounds / 1.277
+ *   Rating     = (KillRating + 0.7·Survival + RoundsWMK) / 2.7
+ * 1K (раунды ровно с 1 killом) восстанавливаем из общего числа киллов и мультикиллов.
  */
-export function ratingV1(kd: number, kr: number, adr: number, winrate: number): number {
-  return +(0.4 * kd + 0.3 * (kr / 0.7) + 0.2 * (adr / 80) + 0.1 * (winrate / 100)).toFixed(3)
+export function hltvRating(
+  kills: number,
+  deaths: number,
+  rounds: number,
+  mk: MultiKills,
+): number {
+  if (!rounds) return 0
+  const killRating = kills / rounds / AVG_KPR
+  const survival = (rounds - deaths) / rounds / AVG_SPR
+  const oneK = Math.max(0, kills - 2 * mk.double - 3 * mk.triple - 4 * mk.quadro - 5 * mk.penta)
+  const rmk =
+    (oneK + 4 * mk.double + 9 * mk.triple + 16 * mk.quadro + 25 * mk.penta) / rounds / AVG_RMK
+  return +((killRating + 0.7 * survival + rmk) / 2.7).toFixed(2)
 }
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0)
@@ -59,7 +79,12 @@ export async function recomputeAggregates(): Promise<number> {
       clutch1v1Wins: sum(list.map((r) => r.clutch1v1Wins)),
       clutch1v2Count: sum(list.map((r) => r.clutch1v2Count)),
       clutch1v2Wins: sum(list.map((r) => r.clutch1v2Wins)),
-      rating: ratingV1(kd, kr, adr, winrate),
+      rating: hltvRating(kills, deaths, sum(list.map((r) => r.rounds)), {
+        double: sum(list.map((r) => r.doubleKills)),
+        triple: sum(list.map((r) => r.tripleKills)),
+        quadro: sum(list.map((r) => r.quadroKills)),
+        penta: sum(list.map((r) => r.pentaKills)),
+      }),
     }
     await prisma.playerAggregate.upsert({
       where: { playerId },

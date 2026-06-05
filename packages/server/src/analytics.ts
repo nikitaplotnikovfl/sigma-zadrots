@@ -124,18 +124,33 @@ export async function playerExtended(
   agg: AggForExtended | null | undefined,
 ): Promise<ExtendedStats | null> {
   if (!agg || !agg.matches) return null
-  const { ratingV1 } = await import('./aggregate.js')
+  const { hltvRating } = await import('./aggregate.js')
 
   const m = agg.matches
   const rounds = agg.rounds
   const round = (v: number, d = 2) => +v.toFixed(d)
 
-  // стабильность: std рейтинга по матчам (per-row rating через ratingV1)
+  // стабильность: std HLTV-рейтинга по картам (per-card rating по реальным раундам карты)
   const rows = await prisma.playerMatchStats.findMany({
     where: { playerId },
-    select: { kd: true, kr: true, adr: true, won: true },
+    select: {
+      kills: true,
+      deaths: true,
+      rounds: true,
+      doubleKills: true,
+      tripleKills: true,
+      quadroKills: true,
+      pentaKills: true,
+    },
   })
-  const ratings = rows.map((r) => ratingV1(r.kd, r.kr, r.adr, r.won ? 100 : 0))
+  const ratings = rows.map((r) =>
+    hltvRating(r.kills, r.deaths, r.rounds, {
+      double: r.doubleKills,
+      triple: r.tripleKills,
+      quadro: r.quadroKills,
+      penta: r.pentaKills,
+    }),
+  )
   const mean = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0
   const variance = ratings.length
     ? ratings.reduce((a, b) => a + (b - mean) ** 2, 0) / ratings.length
@@ -242,6 +257,11 @@ export async function peakRating(playerId: string, fallback: number): Promise<nu
       adr: true,
       headshots: true,
       mvps: true,
+      rounds: true,
+      doubleKills: true,
+      tripleKills: true,
+      quadroKills: true,
+      pentaKills: true,
       finishedAt: true,
       player: { select: { nickname: true, avatar: true, country: true } },
     },

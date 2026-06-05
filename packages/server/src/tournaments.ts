@@ -46,6 +46,11 @@ const STAT_SELECT = {
   headshots: true,
   mvps: true,
   won: true,
+  rounds: true,
+  doubleKills: true,
+  tripleKills: true,
+  quadroKills: true,
+  pentaKills: true,
   player: { select: { nickname: true, avatar: true, country: true } },
 } as const
 

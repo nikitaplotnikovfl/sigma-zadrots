@@ -1,59 +1,62 @@
 import { describe, it, expect } from 'vitest'
-import { ratingV1 } from '../src/aggregate.js'
+import { hltvRating, type MultiKills } from '../src/aggregate.js'
 
-describe('ratingV1', () => {
-  it('zero input -> zero rating', () => {
-    expect(ratingV1(0, 0, 0, 0)).toBe(0)
+const NO_MK: MultiKills = { double: 0, triple: 0, quadro: 0, penta: 0 }
+
+describe('hltvRating', () => {
+  it('zero rounds -> zero rating (нет данных)', () => {
+    expect(hltvRating(0, 0, 0, NO_MK)).toBe(0)
   })
 
-  it('deterministic value for an "average" player (kd=1, kr=0.7, adr=80, wr=50)', () => {
-    // 0.4*1 + 0.3*(0.7/0.7) + 0.2*(80/80) + 0.1*(50/100)
-    // = 0.4 + 0.3 + 0.2 + 0.05 = 0.95
-    expect(ratingV1(1, 0.7, 80, 50)).toBe(0.95)
+  it('средний игрок около ~0.8–1.0 (KPR≈0.7, выживаемость≈0.3, без мультикиллов)', () => {
+    // 20 раундов: kills=14 (KPR 0.7), deaths=14 (SPR 0.3). Без мультикиллов RMK ниже среднего,
+    // поэтому рейтинг чуть ниже 1.0 — это корректное поведение HLTV 1.0.
+    const r = hltvRating(14, 14, 20, NO_MK)
+    expect(r).toBeGreaterThan(0.7)
+    expect(r).toBeLessThan(1.0)
   })
 
-  it('deterministic value for a strong player', () => {
-    // 0.4*1.5 + 0.3*(0.9/0.7) + 0.2*(95/80) + 0.1*(70/100)
-    const expected = +(0.4 * 1.5 + 0.3 * (0.9 / 0.7) + 0.2 * (95 / 80) + 0.1 * (70 / 100)).toFixed(3)
-    expect(ratingV1(1.5, 0.9, 95, 70)).toBe(expected)
-    expect(ratingV1(1.5, 0.9, 95, 70)).toBeCloseTo(1.293, 3)
+  it('детерминированное значение по формуле HLTV 1.0', () => {
+    const kills = 26,
+      deaths = 17,
+      rounds = 30
+    const mk: MultiKills = { double: 7, triple: 2, quadro: 0, penta: 0 }
+    const killRating = kills / rounds / 0.679
+    const survival = (rounds - deaths) / rounds / 0.317
+    const oneK = kills - 2 * mk.double - 3 * mk.triple
+    const rmk = (oneK + 4 * mk.double + 9 * mk.triple) / rounds / 1.277
+    const expected = +((killRating + 0.7 * survival + rmk) / 2.7).toFixed(2)
+    expect(hltvRating(kills, deaths, rounds, mk)).toBe(expected)
   })
 
-  it('result is rounded to 3 decimals', () => {
-    const r = ratingV1(1.234567, 0.812345, 83.21, 53.7)
-    expect(Number.isFinite(r)).toBe(true)
-    // не более 3 знаков после запятой
-    expect(r.toString()).toMatch(/^\d+(\.\d{1,3})?$/)
+  it('округление до 2 знаков', () => {
+    const r = hltvRating(19, 14, 27, { double: 3, triple: 1, quadro: 0, penta: 0 })
+    expect(r.toString()).toMatch(/^\d+(\.\d{1,2})?$/)
   })
 
-  it('rating grows with K/D (all else fixed)', () => {
-    const lo = ratingV1(0.8, 0.7, 80, 50)
-    const hi = ratingV1(1.6, 0.7, 80, 50)
+  it('рейтинг растёт с числом киллов (всё прочее фиксировано)', () => {
+    const lo = hltvRating(12, 15, 24, NO_MK)
+    const hi = hltvRating(20, 15, 24, NO_MK)
     expect(hi).toBeGreaterThan(lo)
   })
 
-  it('rating grows with K/R (all else fixed)', () => {
-    const lo = ratingV1(1, 0.6, 80, 50)
-    const hi = ratingV1(1, 0.9, 80, 50)
+  it('рейтинг растёт с выживаемостью (меньше смертей)', () => {
+    const lo = hltvRating(16, 20, 24, NO_MK)
+    const hi = hltvRating(16, 10, 24, NO_MK)
     expect(hi).toBeGreaterThan(lo)
   })
 
-  it('rating grows with ADR (all else fixed)', () => {
-    const lo = ratingV1(1, 0.7, 60, 50)
-    const hi = ratingV1(1, 0.7, 100, 50)
-    expect(hi).toBeGreaterThan(lo)
+  it('мультикиллы поднимают рейтинг при тех же киллах', () => {
+    // одинаковые kills, но у одного они через 2K/3K (выше RMK-вес)
+    const flat = hltvRating(16, 14, 24, NO_MK)
+    const multi = hltvRating(16, 14, 24, { double: 4, triple: 2, quadro: 0, penta: 0 })
+    expect(multi).toBeGreaterThan(flat)
   })
 
-  it('rating grows with winrate (all else fixed)', () => {
-    const lo = ratingV1(1, 0.7, 80, 30)
-    const hi = ratingV1(1, 0.7, 80, 90)
-    expect(hi).toBeGreaterThan(lo)
-  })
-
-  it('monotonic ordering of three players', () => {
-    const weak = ratingV1(0.7, 0.55, 55, 30)
-    const mid = ratingV1(1.0, 0.7, 78, 50)
-    const top = ratingV1(1.5, 0.95, 100, 75)
+  it('монотонный порядок трёх игроков', () => {
+    const weak = hltvRating(10, 18, 24, NO_MK)
+    const mid = hltvRating(16, 14, 24, { double: 2, triple: 0, quadro: 0, penta: 0 })
+    const top = hltvRating(24, 9, 24, { double: 5, triple: 2, quadro: 1, penta: 0 })
     expect(weak).toBeLessThan(mid)
     expect(mid).toBeLessThan(top)
   })

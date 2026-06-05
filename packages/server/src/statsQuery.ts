@@ -1,5 +1,5 @@
 import { prisma } from './db.js'
-import { ratingV1 } from './aggregate.js'
+import { hltvRating } from './aggregate.js'
 
 // ---- whitelist сортируемых колонок (тот же, что в server.ts) ----
 type SortKey =
@@ -46,6 +46,11 @@ export interface StatsRow {
   adr: number
   headshots: number
   mvps: number
+  rounds: number
+  doubleKills: number
+  tripleKills: number
+  quadroKills: number
+  pentaKills: number
   player: { nickname: string; avatar: string | null; country: string | null }
 }
 
@@ -94,7 +99,12 @@ export function aggregateRows(rows: StatsRow[]): Omit<LeaderboardItem, 'rank'>[]
       adr,
       hsPct,
       mvps: sum(list.map((r) => r.mvps)),
-      rating: ratingV1(kd, kr, adr, winrate),
+      rating: hltvRating(kills, deaths, sum(list.map((r) => r.rounds)), {
+        double: sum(list.map((r) => r.doubleKills)),
+        triple: sum(list.map((r) => r.tripleKills)),
+        quadro: sum(list.map((r) => r.quadroKills)),
+        penta: sum(list.map((r) => r.pentaKills)),
+      }),
     })
   }
   return items
