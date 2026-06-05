@@ -32,6 +32,15 @@ const FLAG: Record<string, string> = {
   ru: '🇷🇺', ua: '🇺🇦', by: '🇧🇾', kz: '🇰🇿', ee: '🇪🇪', lv: '🇱🇻',
 }
 
+// Колонки, под которыми показываем Δ за последний турнир, → ключ в statDelta.
+type DeltaKey = 'rating' | 'kd' | 'adr' | 'winrate'
+const DELTA_COLUMNS: Partial<Record<SortKey, DeltaKey>> = {
+  rating: 'rating',
+  kd: 'kd',
+  adr: 'adr',
+  winrate: 'winrate',
+}
+
 // Человекочитаемое имя карты из mapName вида "de_dust2"
 function prettyMap(map: string): string {
   const cleaned = map.replace(/^de_/i, '').replace(/^cs_/i, '')
@@ -210,7 +219,8 @@ export function Leaderboard({ map }: { map?: string } = {}) {
         <div className="flex items-center gap-2 text-xs text-text-dim">
           <span className="text-neon-cyan">▲</span>
           <span className="text-neon-magenta">▼</span>
-          — движение мест с прошлого турнира; <span className="text-neon-purple">new</span> — дебют
+          — движение мест с прошлого турнира; <span className="text-neon-purple">new</span> — дебют.
+          Цифры под Rating/K/D/ADR/WIN% — Δ за последний турнир.
         </div>
       )}
 
@@ -268,6 +278,8 @@ export function Leaderboard({ map }: { map?: string } = {}) {
                   {COLUMNS.map((c) => {
                     const v = p[c.key] as number
                     const isRating = c.key === 'rating'
+                    const dKey = DELTA_COLUMNS[c.key]
+                    const dVal = showDelta && dKey ? p.statDelta?.[dKey] : undefined
                     return (
                       <td
                         key={c.key}
@@ -276,6 +288,9 @@ export function Leaderboard({ map }: { map?: string } = {}) {
                         }`}
                       >
                         {c.fmt ? c.fmt(v) : v}
+                        {dVal !== undefined && dVal !== null && (
+                          <StatDelta value={dVal} digits={dKey === 'adr' || dKey === 'winrate' ? 1 : 2} />
+                        )}
                       </td>
                     )
                   })}
@@ -335,4 +350,23 @@ function RankDelta({ delta }: { delta?: number | null }) {
     )
   }
   return <span className="text-[11px] leading-none text-text-dim">–</span>
+}
+
+// Δ метрики за последний турнир vs предыдущий: маленькая строка под значением.
+// >0 — рост (cyan ▲), <0 — спад (magenta ▼), 0 — без изменений (серое).
+function StatDelta({ value, digits }: { value: number; digits: number }) {
+  const up = value > 0
+  const flat = value === 0
+  const cls = flat
+    ? 'text-text-dim/60'
+    : up
+      ? 'text-neon-cyan'
+      : 'text-neon-magenta'
+  const arrow = flat ? '' : up ? '▲' : '▼'
+  return (
+    <div className={`text-[10px] font-semibold leading-tight tabular-nums ${cls}`}>
+      {arrow}
+      {Math.abs(value).toFixed(digits)}
+    </div>
+  )
 }

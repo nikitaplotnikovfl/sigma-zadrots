@@ -69,6 +69,7 @@ export async function fetchLeaderboard(opts?: {
       mvps: it.mvps,
       rating: it.rating,
       rankDelta: it.rankDelta ?? null,
+      statDelta: it.statDelta ?? null,
     }))
     return { rows, live: true }
   } catch {

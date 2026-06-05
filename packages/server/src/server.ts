@@ -12,7 +12,12 @@ import { logger } from './logger.js'
 import { syncSource } from './sync.js'
 import { mapsOverview } from './maps.js'
 import { leaderboardByMap } from './statsQuery.js'
-import { getTournamentRankDeltas, listTournaments, leaderboardByTournament } from './tournaments.js'
+import {
+  getTournamentRankDeltas,
+  getTournamentStatDeltas,
+  listTournaments,
+  leaderboardByTournament,
+} from './tournaments.js'
 import { playerForm, playerStreak, playerMaps, peakRating, playerExtended, playerDuels } from './analytics.js'
 import { headToHead, NotFoundError } from './h2h.js'
 import { searchPlayers } from './search.js'
@@ -83,7 +88,7 @@ app.get('/api/leaderboard', async (req, reply) => {
     ...(q ? { player: { nickname: { contains: q } } } : {}),
   }
 
-  const [total, rows, movement] = await Promise.all([
+  const [total, rows, movement, statDeltas] = await Promise.all([
     prisma.playerAggregate.count({ where }),
     prisma.playerAggregate.findMany({
       where,
@@ -93,6 +98,7 @@ app.get('/api/leaderboard', async (req, reply) => {
       include: { player: true },
     }),
     getTournamentRankDeltas(),
+    getTournamentStatDeltas(),
   ])
   const deltas = movement.deltas
 
@@ -115,6 +121,7 @@ app.get('/api/leaderboard', async (req, reply) => {
     mvps: r.mvps,
     rating: r.rating,
     rankDelta: deltas.has(r.playerId) ? deltas.get(r.playerId)! : null,
+    statDelta: statDeltas.get(r.playerId) ?? null,
   }))
 
   const rankDeltaPeriod =

@@ -19,7 +19,9 @@ export type PlayerRow = {
   hsPct: number // %
   mvps: number
   rating: number
-  rankDelta?: number | null // движение в рейтинге относительно прошлого снапшота
+  rankDelta?: number | null // движение мест относительно прошлого турнира
+  // Δ ключевых метрик за последний турнир vs предыдущий (null — не играл в предыдущем)
+  statDelta?: { rating: number; kd: number; adr: number; winrate: number } | null
 }
 
 const NICKS = [

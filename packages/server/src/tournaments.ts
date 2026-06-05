@@ -110,6 +110,47 @@ export async function getTournamentRankDeltas(): Promise<TournamentMovement> {
   return { deltas, last, prev }
 }
 
+export type StatDelta = { rating: number; kd: number; adr: number; winrate: number }
+
+/**
+ * Дельты ключевых метрик за ПОСЛЕДНИЙ турнир относительно ПРЕДЫДУЩЕГО:
+ *   delta = (метрика игрока за последний турнир) − (та же метрика за предыдущий турнир).
+ * Считается только для игроков, у кого есть матчи в ОБОИХ турнирах (иначе сравнивать не с чем → нет дельты).
+ * Возвращает Map playerId -> StatDelta (rating/kd/adr/winrate).
+ */
+export async function getTournamentStatDeltas(): Promise<Map<string, StatDelta>> {
+  const periods = await detectTournaments()
+  const out = new Map<string, StatDelta>()
+  if (periods.length < 2) return out
+
+  const last = periods[periods.length - 1]
+  const prev = periods[periods.length - 2]
+
+  const load = async (p: Tournament) =>
+    (await prisma.playerMatchStats.findMany({
+      where: { finishedAt: { gte: p.start, lte: p.end } },
+      select: STAT_SELECT,
+    })) as unknown as StatsRow[]
+
+  const [lastAgg, prevAgg] = await Promise.all([
+    load(last).then(aggregateRows),
+    load(prev).then(aggregateRows),
+  ])
+  const prevByPlayer = new Map(prevAgg.map((a) => [a.playerId, a]))
+
+  for (const cur of lastAgg) {
+    const before = prevByPlayer.get(cur.playerId)
+    if (!before) continue // игрок не играл в предыдущем турнире — дельту не показываем
+    out.set(cur.playerId, {
+      rating: +(cur.rating - before.rating).toFixed(2),
+      kd: +(cur.kd - before.kd).toFixed(2),
+      adr: +(cur.adr - before.adr).toFixed(1),
+      winrate: +(cur.winrate - before.winrate).toFixed(1),
+    })
+  }
+  return out
+}
+
 /** Список турниров для UI: индекс (0 — самый ранний), даты, число матчей; свежие первыми. */
 export async function listTournaments(): Promise<
   { index: number; start: Date; end: Date; matches: number }[]
