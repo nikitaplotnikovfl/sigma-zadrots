@@ -1,6 +1,6 @@
 import { prisma } from './db.js'
 import { env } from './env.js'
-import { aggregateRows, type StatsRow } from './statsQuery.js'
+import { aggregateRows, type StatsRow, type LeaderboardItem, type LeaderboardParams } from './statsQuery.js'
 
 export type Tournament = { start: Date; end: Date; matches: number }
 
@@ -108,4 +108,52 @@ export async function getTournamentRankDeltas(): Promise<TournamentMovement> {
     }
   }
   return { deltas, last, prev }
+}
+
+/** Список турниров для UI: индекс (0 — самый ранний), даты, число матчей; свежие первыми. */
+export async function listTournaments(): Promise<
+  { index: number; start: Date; end: Date; matches: number }[]
+> {
+  const periods = await detectTournaments()
+  return periods
+    .map((p, index) => ({ index, start: p.start, end: p.end, matches: p.matches }))
+    .reverse()
+}
+
+/**
+ * Лидерборд за один турнир (по индексу из detectTournaments) — агрегаты считаются на лету
+ * по матчам, попавшим в окно [start, end] периода. Минимальный порог матчей здесь не применяется
+ * (за один турнир игр немного), но q/minMatches/сортировка/пагинация работают как обычно.
+ */
+export async function leaderboardByTournament(
+  index: number,
+  { sort, order, q, minMatches, page, pageSize }: LeaderboardParams,
+): Promise<{ total: number; items: LeaderboardItem[]; period: { start: Date; end: Date } } | null> {
+  const periods = await detectTournaments()
+  const period = periods[index]
+  if (!period) return null
+
+  const rows = (await prisma.playerMatchStats.findMany({
+    where: { finishedAt: { gte: period.start, lte: period.end } },
+    select: STAT_SELECT,
+  })) as unknown as StatsRow[]
+
+  let items = aggregateRows(rows)
+  if (q) {
+    const needle = q.toLowerCase()
+    items = items.filter((it) => it.nickname.toLowerCase().includes(needle))
+  }
+  if (minMatches > 0) items = items.filter((it) => it.matches >= minMatches)
+
+  const dir = order === 'asc' ? 1 : -1
+  items.sort((a, b) => {
+    const diff = (a[sort] - b[sort]) * dir
+    if (diff !== 0) return diff
+    return a.nickname.localeCompare(b.nickname)
+  })
+
+  const total = items.length
+  const start = (page - 1) * pageSize
+  const paged = items.slice(start, start + pageSize).map((it, i) => ({ rank: start + i + 1, ...it }))
+  return { total, items: paged, period: { start: period.start, end: period.end } }
 }

@@ -12,7 +12,7 @@ import { logger } from './logger.js'
 import { syncSource } from './sync.js'
 import { mapsOverview } from './maps.js'
 import { leaderboardByMap } from './statsQuery.js'
-import { getTournamentRankDeltas } from './tournaments.js'
+import { getTournamentRankDeltas, listTournaments, leaderboardByTournament } from './tournaments.js'
 import { playerForm, playerStreak, playerMaps, peakRating, playerExtended, playerDuels } from './analytics.js'
 import { headToHead, NotFoundError } from './h2h.js'
 import { searchPlayers } from './search.js'
@@ -36,6 +36,7 @@ type Sortable = (typeof SORTABLE)[number]
 
 const leaderboardQuery = z.object({
   map: z.string().trim().min(1).optional(),
+  tournament: z.coerce.number().int().min(0).optional(),
   sort: z.enum(SORTABLE as unknown as [Sortable, ...Sortable[]]).default('rating'),
   order: z.enum(['asc', 'desc']).default('desc'),
   q: z.string().trim().optional(),
@@ -60,7 +61,14 @@ app.get('/api/sync/status', async () => {
 app.get('/api/leaderboard', async (req, reply) => {
   const parsed = leaderboardQuery.safeParse(req.query)
   if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() })
-  const { map, sort, order, q, minMatches, page, pageSize } = parsed.data
+  const { map, tournament, sort, order, q, minMatches, page, pageSize } = parsed.data
+
+  // За конкретный турнир — агрегаты считаются на лету по матчам периода.
+  if (tournament !== undefined) {
+    const res = await leaderboardByTournament(tournament, { sort, order, q, minMatches, page, pageSize })
+    if (!res) return reply.code(404).send({ error: 'tournament not found' })
+    return { total: res.total, page, pageSize, sort, order, items: res.items, period: res.period }
+  }
 
   // С фильтром по карте — агрегаты считаются на лету из PlayerMatchStats.
   if (map) {
@@ -121,6 +129,8 @@ app.get('/api/leaderboard', async (req, reply) => {
 })
 
 app.get('/api/maps', async () => ({ items: await mapsOverview() }))
+
+app.get('/api/tournaments', async () => ({ items: await listTournaments() }))
 
 app.get('/api/players/:id', async (req, reply) => {
   const { id } = req.params as { id: string }

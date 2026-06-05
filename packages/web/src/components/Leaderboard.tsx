@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { type PlayerRow } from '../data/mock'
-import { fetchLeaderboard, fetchMaps, type MapRow } from '../api'
+import { fetchLeaderboard, fetchMaps, fetchTournaments, type MapRow, type TournamentRow } from '../api'
 import { NeonCard } from './Neon'
 
 type SortKey = keyof Pick<
@@ -38,15 +38,24 @@ function prettyMap(map: string): string {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
 }
 
+// Подпись турнира по датам периода: «19 мая» или «20 янв – 17 фев»
+function tournamentLabel(t: TournamentRow): string {
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+  const start = fmt(t.start)
+  const end = fmt(t.end)
+  return start === end ? start : `${start} – ${end}`
+}
+
 export function Leaderboard({ map }: { map?: string } = {}) {
   // Базовый порог: на общем лидерборде показываем игроков от 10 матчей,
   // на странице конкретной карты порога нет (иначе редкие карты опустеют).
   // Авторитетный фильтр — на бэкенде (env LEADERBOARD_MIN_MATCHES); здесь дефолт UI.
-  const minFloor = typeof map === 'string' ? 0 : 10
+  const baseFloor = typeof map === 'string' ? 0 : 10
   const [sortKey, setSortKey] = useState<SortKey>('rating')
   const [asc, setAsc] = useState(false)
   const [query, setQuery] = useState('')
-  const [minMatches, setMinMatches] = useState(minFloor)
+  const [minMatches, setMinMatches] = useState(baseFloor)
   const [data, setData] = useState<PlayerRow[]>([])
   const [live, setLive] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -56,16 +65,30 @@ export function Leaderboard({ map }: { map?: string } = {}) {
   // Выбор карты из дропдауна на главной (пусто = «Все карты»).
   const [selectedMap, setSelectedMap] = useState('')
   const [maps, setMaps] = useState<MapRow[]>([])
+  // Выбор турнира ('' = за всё время). Турнир и карта — взаимоисключающие суб-фильтры.
+  const [selectedTournament, setSelectedTournament] = useState('')
+  const [tournaments, setTournaments] = useState<TournamentRow[]>([])
 
   const activeMap = fixedMap ? map : selectedMap
-  // На странице/фильтре карты rankDelta не приходит — индикатор движения скрываем.
-  const showDelta = !activeMap
+  const activeTournament = selectedTournament === '' ? undefined : Number(selectedTournament)
+  // При суб-фильтре (карта/турнир) выборка мала — порог матчей убираем, иначе таблица опустеет.
+  const minFloor = activeMap || activeTournament !== undefined ? 0 : baseFloor
+  // При суб-фильтре (карта/турнир) rankDelta не приходит — индикатор движения скрываем.
+  const showDelta = !activeMap && activeTournament === undefined
+
+  // Сбрасываем порог матчей к актуальному минимуму при смене суб-фильтра.
+  useEffect(() => {
+    setMinMatches(minFloor)
+  }, [minFloor])
 
   useEffect(() => {
     if (fixedMap) return
     let cancelled = false
     fetchMaps().then((rows) => {
       if (!cancelled) setMaps(rows.slice().sort((a, b) => b.matches - a.matches))
+    })
+    fetchTournaments().then((rows) => {
+      if (!cancelled) setTournaments(rows)
     })
     return () => {
       cancelled = true
@@ -75,7 +98,12 @@ export function Leaderboard({ map }: { map?: string } = {}) {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchLeaderboard(activeMap ? { map: activeMap } : undefined).then((r) => {
+    const opts = activeMap
+      ? { map: activeMap }
+      : activeTournament !== undefined
+        ? { tournament: activeTournament }
+        : undefined
+    fetchLeaderboard(opts).then((r) => {
       if (cancelled) return
       setData(r.rows)
       setLive(r.live)
@@ -84,7 +112,7 @@ export function Leaderboard({ map }: { map?: string } = {}) {
     return () => {
       cancelled = true
     }
-  }, [activeMap])
+  }, [activeMap, activeTournament])
 
   const rows = useMemo(() => {
     const filtered = data.filter(
@@ -114,13 +142,34 @@ export function Leaderboard({ map }: { map?: string } = {}) {
         {!fixedMap && (
           <select
             value={selectedMap}
-            onChange={(e) => setSelectedMap(e.target.value)}
+            onChange={(e) => {
+              setSelectedMap(e.target.value)
+              if (e.target.value) setSelectedTournament('')
+            }}
             className="rounded-lg border border-neon-purple/50 bg-bg-soft/80 px-4 py-2 text-sm text-text outline-none focus:border-neon-cyan focus:shadow-neon-cyan"
           >
             <option value="">Все карты</option>
             {maps.map((m) => (
               <option key={m.map} value={m.map}>
                 {prettyMap(m.map)}
+              </option>
+            ))}
+          </select>
+        )}
+        {!fixedMap && tournaments.length > 0 && (
+          <select
+            value={selectedTournament}
+            onChange={(e) => {
+              setSelectedTournament(e.target.value)
+              if (e.target.value) setSelectedMap('')
+            }}
+            className="rounded-lg border border-neon-purple/50 bg-bg-soft/80 px-4 py-2 text-sm text-text outline-none focus:border-neon-cyan focus:shadow-neon-cyan"
+          >
+            <option value="">За всё время</option>
+            {tournaments.map((t, i) => (
+              <option key={t.index} value={t.index}>
+                Турнир {tournamentLabel(t)}
+                {i === 0 ? ' (последний)' : ''}
               </option>
             ))}
           </select>

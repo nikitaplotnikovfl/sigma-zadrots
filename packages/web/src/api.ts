@@ -21,20 +21,33 @@ export type Overview = {
   live: boolean
 }
 
+export type TournamentRow = {
+  index: number
+  start: string
+  end: string
+  matches: number
+}
+
 const API = '/api'
 
-export async function fetchLeaderboard(opts?: { map?: string }): Promise<LeaderboardResult> {
+export async function fetchLeaderboard(opts?: {
+  map?: string
+  tournament?: number
+}): Promise<LeaderboardResult> {
   const map = opts?.map?.trim()
+  const tournament = opts?.tournament
+  // Любой суб-фильтр (карта/турнир) даёт валидный live-результат, мок не подставляем.
+  const filtered = Boolean(map) || tournament !== undefined
   try {
     const params = new URLSearchParams({ pageSize: '200', sort: 'rating', order: 'desc' })
     if (map) params.set('map', map)
+    if (tournament !== undefined) params.set('tournament', String(tournament))
     const res = await fetch(`${API}/leaderboard?${params.toString()}`)
     if (!res.ok) throw new Error(String(res.status))
     const data = await res.json()
     const items: any[] = data.items ?? []
     if (!items.length) {
-      // Если выбрана карта — это валидный пустой live-результат, мок не подставляем.
-      if (map) return { rows: [], live: true }
+      if (filtered) return { rows: [], live: true }
       return { rows: PLAYERS, live: false }
     }
     const rows: PlayerRow[] = items.map((it) => ({
@@ -59,9 +72,26 @@ export async function fetchLeaderboard(opts?: { map?: string }): Promise<Leaderb
     }))
     return { rows, live: true }
   } catch {
-    // При выбранной карте мок (не отфильтрованный по карте) подставлять некорректно.
-    if (map) return { rows: [], live: false }
+    // При активном суб-фильтре мок (не отфильтрованный) подставлять некорректно.
+    if (filtered) return { rows: [], live: false }
     return { rows: PLAYERS, live: false }
+  }
+}
+
+export async function fetchTournaments(): Promise<TournamentRow[]> {
+  try {
+    const res = await fetch(`${API}/tournaments`)
+    if (!res.ok) throw new Error(String(res.status))
+    const data = await res.json()
+    const items: any[] = data.items ?? []
+    return items.map((it) => ({
+      index: it.index,
+      start: it.start,
+      end: it.end,
+      matches: it.matches ?? 0,
+    }))
+  } catch {
+    return []
   }
 }
 
