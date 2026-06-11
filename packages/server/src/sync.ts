@@ -7,6 +7,10 @@ import { parseMatchRounds } from './normalize.js'
 
 const log = logger.child({ mod: 'sync' })
 let running = false
+let runningSince = 0
+// Защита от «застрявшего» флага: если синк якобы идёт дольше этого времени —
+// считаем его зависшим и разрешаем новый запуск (на случай редких краёв даже с таймаутом fetch).
+const MAX_RUN_MS = 5 * 60 * 1000
 
 export type SyncResult = {
   matchesSeen: number
@@ -17,11 +21,15 @@ export type SyncResult = {
 }
 
 export async function syncSource(): Promise<SyncResult> {
-  if (running) {
+  if (running && Date.now() - runningSince < MAX_RUN_MS) {
     log.warn('sync already running, skipped')
     return { matchesSeen: 0, matchesNew: 0, players: 0, status: 'skipped' }
   }
+  if (running) {
+    log.warn({ stuckForMs: Date.now() - runningSince }, 'previous sync looks stuck, forcing new run')
+  }
   running = true
+  runningSince = Date.now()
   log.info({ hubId: env.hubId }, 'sync start')
   const run = await prisma.syncRun.create({ data: { sourceId: env.hubId } })
   let seen = 0

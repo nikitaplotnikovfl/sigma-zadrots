@@ -16,9 +16,26 @@ async function throttle() {
 
 async function get<T>(path: string, attempt = 0): Promise<T> {
   await throttle()
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { Authorization: `Bearer ${env.faceitApiKey}`, Accept: 'application/json' },
-  })
+
+  // Таймаут на запрос: без него зависший вызов FACEIT держит весь синк навечно
+  // (флаг running застревает → последующие синки = skipped).
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      headers: { Authorization: `Bearer ${env.faceitApiKey}`, Accept: 'application/json' },
+      signal: AbortSignal.timeout(env.requestTimeoutMs),
+    })
+  } catch (e) {
+    // Таймаут/сетевой сбой — ретраим как временную ошибку.
+    if (attempt >= 5) {
+      log.error({ path, attempt, err: (e as Error).message }, 'faceit network/timeout giving up')
+      throw new Error(`FACEIT network/timeout после ${attempt} попыток: ${path}`)
+    }
+    const delay = Math.min(15000, 800 * 2 ** attempt)
+    log.warn({ path, attempt, delay, err: (e as Error).message }, 'faceit retry (network/timeout)')
+    await new Promise((r) => setTimeout(r, delay))
+    return get<T>(path, attempt + 1)
+  }
 
   if (res.status === 429 || res.status >= 500) {
     if (attempt >= 5) {

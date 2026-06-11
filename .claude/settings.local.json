@@ -17,7 +17,9 @@
       "Bash(curl -s http://localhost:3000/api/health)",
       "Bash(curl -s \"http://localhost:3000/api/leaderboard?pageSize=3\")",
       "Bash(curl -s http://localhost:3000/api/sync/status)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npm i *)",
+      "Bash(npx playwright *)"
     ]
   }
 }

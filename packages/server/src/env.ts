@@ -23,6 +23,8 @@ export const env = {
   syncTz: process.env.SYNC_TZ ?? 'UTC',
   pageLimit: Number(process.env.SYNC_PAGE_LIMIT ?? 100),
   minIntervalMs: Number(process.env.SYNC_MIN_INTERVAL_MS ?? 600),
+  // Таймаут одного запроса к FACEIT (мс) — защита от зависания синка.
+  requestTimeoutMs: Number(process.env.FACEIT_TIMEOUT_MS ?? 20000),
   logLevel: process.env.LOG_LEVEL ?? 'info',
   isProd: process.env.NODE_ENV === 'production',
   // Минимум матчей (игр по картам), чтобы игрок попал в общий лидерборд.
